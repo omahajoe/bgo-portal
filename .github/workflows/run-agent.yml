@@ -1,0 +1,40 @@
+name: Run CORE Agent
+on:
+  workflow_dispatch:
+      inputs:
+            agent_type:
+                    description: 'Agent to run (linkedin or blog)'
+                            required: true
+                                    type: choice
+                                            options:
+                                                      - linkedin
+                                                                - blog
+
+                                                                jobs:
+                                                                  run-agent:
+                                                                      runs-on: ubuntu-latest
+                                                                          permissions:
+                                                                                contents: write
+                                                                                    steps:
+                                                                                          - uses: actions/checkout@v4
+
+                                                                                                - uses: actions/setup-python@v5
+                                                                                                        with:
+                                                                                                                  python-version: '3.11'
+                                                                                                                  
+                                                                                                                        - name: Install dependencies
+                                                                                                                                run: pip install anthropic
+                                                                                                                                
+                                                                                                                                      - name: Run agent
+                                                                                                                                              env:
+                                                                                                                                                        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+                                                                                                                                                                  AGENT_TYPE: ${{ inputs.agent_type }}
+                                                                                                                                                                          run: python .github/scripts/generate_agent_output.py
+                                                                                                                                                                          
+                                                                                                                                                                                - name: Commit and push
+                                                                                                                                                                                        run: |
+                                                                                                                                                                                                  git config user.name "CORE Agent Bot"
+                                                                                                                                                                                                            git config user.email "agent@yorcmo.com"
+                                                                                                                                                                                                                      git add -A
+                                                                                                                                                                                                                                git commit -m "Agent output updated" || echo "No changes"
+                                                                                                                                                                                                                                          git push
