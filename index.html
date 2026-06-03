@@ -1723,7 +1723,8 @@
                         </div>
                         <div class="fundamental-tag">F6: Structure Your Execution</div>
                         <div class="agent-action">
-                            <button class="btn btn-primary" onclick="openModal('Blog Pipeline', 'blog')">Open</button>
+                            <button class="btn btn-primary" onclick="openModal('Blog Pipeline', 'blog')" style="width:48%; display:inline-block;">Open</button>
+                            <button class="btn btn-outline" onclick="runLiveAgent('blog')" id="run-blog-btn" style="width:48%; display:inline-block; margin-left:2%;">&#9654; Run Live</button>
                         </div>
                     </div>
 
@@ -1741,7 +1742,8 @@
                         </div>
                         <div class="fundamental-tag">F6: Structure Your Execution</div>
                         <div class="agent-action">
-                            <button class="btn btn-primary" onclick="openModal('LinkedIn Post Generator', 'linkedin')">Open</button>
+                            <button class="btn btn-primary" onclick="openModal('LinkedIn Post Generator', 'linkedin')" style="width:48%; display:inline-block;">Open</button>
+                            <button class="btn btn-outline" onclick="runLiveAgent('linkedin')" id="run-linkedin-btn" style="width:48%; display:inline-block; margin-left:2%;">&#9654; Run Live</button>
                         </div>
                     </div>
 
@@ -2227,6 +2229,86 @@
                 }
             }, 500);
         });
+        // ── LIVE AGENT RUNNER ──
+        // Calls the Netlify function proxy → Anthropic Claude API
+        // The Mac Daddy content is already embedded in agentOutputs.macdaddy
+        const AGENT_API_URL = '/.netlify/functions/run-agent';  // Same-origin Netlify function
+
+        async function runLiveAgent(agentType) {
+            const btn = document.getElementById(`run-${agentType}-btn`);
+            const originalText = btn.innerHTML;
+            const agentName = agentType === 'linkedin' ? 'LinkedIn Post Generator' : 'Blog Pipeline';
+
+            // Show running state
+            btn.innerHTML = '&#9203; Running...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            // Open modal with loading animation
+            const modal = document.getElementById('modalOverlay');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            modalTitle.textContent = agentName + ' — Live Run';
+            modalContent.innerHTML = `
+                <div style="text-align:center; padding:40px;">
+                    <div class="spinner" style="margin:0 auto 16px;"></div>
+                    <div style="color:var(--teal); font-weight:600; margin-bottom:8px;">Agent Running...</div>
+                    <div style="color:var(--text-muted); font-size:13px;">Claude is generating fresh ${agentType === 'linkedin' ? 'LinkedIn posts' : 'blog content'} from the Mac Daddy File</div>
+                </div>`;
+            modal.classList.add('active');
+
+            try {
+                const macDaddyContent = agentOutputs.macdaddy || '';
+                const resp = await fetch(AGENT_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agentType, macDaddyContext: macDaddyContent })
+                });
+
+                const data = await resp.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Format the output with markdown-like rendering
+                const formatted = data.output
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n\n/g, '<br><br>')
+                    .replace(/\n/g, '<br>');
+
+                const timestamp = new Date(data.generated).toLocaleString();
+                modalContent.innerHTML = `
+                    <div style="background:var(--teal-subtle); padding:12px 16px; border-radius:8px; margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                        <span style="color:var(--teal); font-size:18px;">&#10003;</span>
+                        <div>
+                            <div style="font-weight:600; color:var(--teal); font-size:13px;">Live Agent Output</div>
+                            <div style="font-size:11px; color:var(--text-muted);">Generated ${timestamp} by Claude</div>
+                        </div>
+                    </div>
+                    <div class="output-content">${formatted}</div>`;
+
+                // Update the stored output so "Open" shows the latest
+                agentOutputs[agentType] = data.output;
+
+                // Success button state
+                btn.innerHTML = '&#10003; Done';
+                btn.style.opacity = '1';
+                setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
+
+            } catch (err) {
+                modalContent.innerHTML = `
+                    <div style="background:#FFF3E0; padding:16px; border-radius:8px; margin-bottom:16px;">
+                        <div style="font-weight:600; color:#E67E22; margin-bottom:8px;">Agent Error</div>
+                        <div style="font-size:13px; color:var(--text-dark);">${err.message}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">
+                            If this is an API key issue, add <code>ANTHROPIC_API_KEY</code> in Netlify Dashboard &rarr; Site settings &rarr; Environment variables.
+                        </div>
+                    </div>`;
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
     </script>
 </body>
 </html>
